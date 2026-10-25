@@ -1,0 +1,26 @@
+name: Packer Status Check
+
+on:
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  packer-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Packer
+        uses: hashicorp/setup-packer@v3
+
+      - name: Packer init
+        run: packer init .
+
+      - name: Check Packer formatting
+        run: packer fmt -check .
+
+      - name: Validate Packer template
+        run: packer validate .

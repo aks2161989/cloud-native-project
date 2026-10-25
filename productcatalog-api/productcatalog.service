@@ -1,0 +1,17 @@
+[Unit]
+Description=Product Catalog Spring Boot Application
+After=network.target postgresql.service
+
+[Service]
+User=csye6225
+Group=csye6225
+
+Environment="DB_URL=jdbc:postgresql://localhost:5432/productcatalog_db"
+Environment="DB_USERNAME=productcatalog"
+Environment="DB_PASSWORD=productcatalog_password"
+
+ExecStart=/usr/bin/java -jar /opt/csye6225/productcatalog-api.jar
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

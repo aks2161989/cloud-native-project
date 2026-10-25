@@ -1,0 +1,55 @@
+# ==========================================
+# Root .gitignore for Cloud Native Project
+# ==========================================
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+.terraform.tfstate.lock.info
+.terraformrc
+terraform.rc
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+crash.log
+crash.*.log
+
+# Java / Maven
+**/target/
+.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# IDEs & Editors
+.idea/
+*.iws
+*.iml
+*.ipr
+.vscode/
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+nbproject/
+build/
+
+# Environment & Secrets
+.env
+*.pem
+*.key
+
+# Logs & OS Files
+*.log
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Git backups
+*.git_backup
