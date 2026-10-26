@@ -283,3 +283,45 @@ Run the complete test suite with:
 
 ```bash
 mvn clean test
+```
+
+---
+
+# Golden AMI Creation (Packer)
+
+The repository includes a HashiCorp Packer template (`aws-ubuntu.pkr.hcl`) and provisioning script (`setup.sh`) to build an immutable, production-hardened AWS AMI.
+
+### Components
+
+- **Template**: `aws-ubuntu.pkr.hcl` targeting `Ubuntu 24.04 LTS (Noble Numbat)`.
+- **Provisioner**: `setup.sh` installs OpenJDK 21 headless, installs and enables PostgreSQL, creates a non-login user and group (`csye6225`), removes Git, installs the compiled JAR into `/opt/csye6225`, and configures the systemd service.
+- **Service Configuration**: `productcatalog.service` manages the Spring Boot process under the `csye6225` user with automatic restart on failure.
+
+### Building the AMI
+
+1. Build the application JAR:
+   ```bash
+   mvn clean package
+   ```
+
+2. Initialize and validate the Packer configuration:
+   ```bash
+   packer init .
+   packer fmt -check .
+   packer validate .
+   ```
+
+3. Build the AMI (requires AWS credentials):
+   ```bash
+   packer build .
+   ```
+
+---
+
+# CI/CD Workflows
+
+GitHub Actions workflows are configured in `.github/workflows/`:
+
+- **`ci.yml`**: Runs on push and pull requests to `master`. Launches a PostgreSQL 16 container service and executes `mvn clean verify`.
+- **`packer-check.yml`**: Runs on pull requests to `master` to check Packer formatting and validate template syntax.
+- **`packer-build.yml`**: Runs on push to `master`. Runs tests, builds the JAR, authenticates to AWS, and bakes a new golden AMI.
