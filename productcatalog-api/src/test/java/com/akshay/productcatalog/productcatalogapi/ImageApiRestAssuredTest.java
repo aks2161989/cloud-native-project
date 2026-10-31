@@ -28,6 +28,9 @@ class ImageApiRestAssuredTest extends BaseRestAssuredTest {
     @Autowired
     private ImageRepository imageRepository;
 
+    @Autowired
+    private org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
+
     private final List<Long> productIdsToDelete = new ArrayList<>();
     private final List<Long> userIdsToDelete = new ArrayList<>();
 
@@ -45,7 +48,7 @@ class ImageApiRestAssuredTest extends BaseRestAssuredTest {
         user.setFirstName("Test");
         user.setLastName("User");
         user.setUsername(username);
-        user.setPassword(password);
+        user.setPassword(passwordEncoder.encode(password));
         User saved = userRepository.save(user);
         userIdsToDelete.add(saved.getId());
         return saved;

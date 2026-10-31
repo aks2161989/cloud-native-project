@@ -72,6 +72,11 @@ build {
   }
 
   provisioner "file" {
+    source      = "amazon-cloudwatch-agent.json"
+    destination = "/tmp/amazon-cloudwatch-agent.json"
+  }
+
+  provisioner "file" {
     source      = "setup.sh"
     destination = "/tmp/setup.sh"
   }
@@ -79,7 +84,7 @@ build {
   provisioner "shell" {
     inline = [
       "chmod +x /tmp/setup.sh",
-      "sudo /tmp/setup.sh /tmp/productcatalog-api.jar /tmp/productcatalog.service"
+      "sudo /tmp/setup.sh /tmp/productcatalog-api.jar /tmp/productcatalog.service /tmp/amazon-cloudwatch-agent.json"
     ]
   }
 }

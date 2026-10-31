@@ -223,6 +223,11 @@ resource "aws_iam_role_policy_attachment" "ec2_s3_policy_attachment" {
   policy_arn = aws_iam_policy.ec2_s3_policy.arn
 }
 
+resource "aws_iam_role_policy_attachment" "ec2_cloudwatch_agent_policy_attachment" {
+  role       = aws_iam_role.ec2_s3_role.name
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+}
+
 resource "aws_iam_instance_profile" "ec2_profile" {
   name = "${var.vpc_name}-ec2-instance-profile"
   role = aws_iam_role.ec2_s3_role.name
@@ -328,9 +333,28 @@ resource "aws_instance" "application" {
               DB_PASSWORD=${random_password.db_password.result}
               AWS_REGION=${var.aws_region}
               S3_BUCKET_NAME=${aws_s3_bucket.attachments.bucket}
+              LOG_FILE_PATH=/var/log/csye6225/app.log
+              STATSD_HOST=localhost
+              STATSD_PORT=8125
+              STATSD_PREFIX=csye6225
               ENVFILE
               chown csye6225:csye6225 /opt/csye6225/application.env
               chmod 600 /opt/csye6225/application.env
+
+              # Ensure log directory and log file exist with appropriate permissions
+              mkdir -p /var/log/csye6225
+              touch /var/log/csye6225/app.log
+              chown -R csye6225:csye6225 /var/log/csye6225
+              chmod 755 /var/log/csye6225
+              chmod 644 /var/log/csye6225/app.log
+
+              # Configure and restart CloudWatch Agent
+              /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+                -a fetch-config \
+                -m ec2 \
+                -s \
+                -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
+
               systemctl daemon-reload
               systemctl restart productcatalog.service
               EOF

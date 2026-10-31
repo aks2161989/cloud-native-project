@@ -1,6 +1,9 @@
 package com.akshay.productcatalog.productcatalogapi.service;
 
 import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
@@ -15,6 +18,8 @@ import java.io.IOException;
 @Service
 public class S3ServiceImpl implements S3Service {
 
+    private static final Logger logger = LoggerFactory.getLogger(S3ServiceImpl.class);
+
     @Value("${aws.s3.bucket.name:}")
     private String bucketName;
 
@@ -23,12 +28,21 @@ public class S3ServiceImpl implements S3Service {
 
     private S3Client s3Client;
 
+    @Autowired(required = false)
+    private MetricsService metricsService;
+
     public S3ServiceImpl() {
     }
 
     public S3ServiceImpl(S3Client s3Client, String bucketName) {
         this.s3Client = s3Client;
         this.bucketName = bucketName;
+    }
+
+    public S3ServiceImpl(S3Client s3Client, String bucketName, MetricsService metricsService) {
+        this.s3Client = s3Client;
+        this.bucketName = bucketName;
+        this.metricsService = metricsService;
     }
 
     @PostConstruct
@@ -39,8 +53,9 @@ public class S3ServiceImpl implements S3Service {
                         .region(Region.of(awsRegion))
                         .credentialsProvider(DefaultCredentialsProvider.create())
                         .build();
+                logger.info("S3Client initialized successfully for region {} and bucket {}", awsRegion, bucketName);
             } catch (Exception e) {
-                // If running in local test environment without AWS credentials, s3Client remains uninitialized
+                logger.warn("Could not initialize S3Client in current environment: {}", e.getMessage());
             }
         }
     }
@@ -60,8 +75,29 @@ public class S3ServiceImpl implements S3Service {
                 .contentType(contentType)
                 .build();
 
-        s3Client.putObject(putObjectRequest, RequestBody.fromBytes(fileData));
-        return bucketName + "/" + key;
+        logger.info("Uploading file to S3: bucket={}, key={}, size={} bytes, contentType={}",
+                bucketName, key, fileData.length, contentType);
+
+        long startTime = System.currentTimeMillis();
+        try {
+            s3Client.putObject(putObjectRequest, RequestBody.fromBytes(fileData));
+            long duration = System.currentTimeMillis() - startTime;
+
+            if (metricsService != null) {
+                metricsService.recordS3CallTime("putObject", duration);
+            }
+            logger.info("Successfully uploaded file to S3: bucket={}, key={}, duration={}ms",
+                    bucketName, key, duration);
+            return bucketName + "/" + key;
+        } catch (Exception e) {
+            long duration = System.currentTimeMillis() - startTime;
+            if (metricsService != null) {
+                metricsService.recordS3CallTime("putObject", duration);
+            }
+            logger.error("Failed to upload file to S3: bucket={}, key={}, duration={}ms, error={}",
+                    bucketName, key, duration, e.getMessage(), e);
+            throw e;
+        }
     }
 
     @Override
@@ -78,7 +114,27 @@ public class S3ServiceImpl implements S3Service {
                 .key(key)
                 .build();
 
-        s3Client.deleteObject(deleteObjectRequest);
+        logger.info("Deleting file from S3: bucket={}, key={}", bucketName, key);
+
+        long startTime = System.currentTimeMillis();
+        try {
+            s3Client.deleteObject(deleteObjectRequest);
+            long duration = System.currentTimeMillis() - startTime;
+
+            if (metricsService != null) {
+                metricsService.recordS3CallTime("deleteObject", duration);
+            }
+            logger.info("Successfully deleted file from S3: bucket={}, key={}, duration={}ms",
+                    bucketName, key, duration);
+        } catch (Exception e) {
+            long duration = System.currentTimeMillis() - startTime;
+            if (metricsService != null) {
+                metricsService.recordS3CallTime("deleteObject", duration);
+            }
+            logger.error("Failed to delete file from S3: bucket={}, key={}, duration={}ms, error={}",
+                    bucketName, key, duration, e.getMessage(), e);
+            throw e;
+        }
     }
 
     @Override
@@ -92,5 +148,9 @@ public class S3ServiceImpl implements S3Service {
 
     public void setBucketName(String bucketName) {
         this.bucketName = bucketName;
+    }
+
+    public void setMetricsService(MetricsService metricsService) {
+        this.metricsService = metricsService;
     }
 }

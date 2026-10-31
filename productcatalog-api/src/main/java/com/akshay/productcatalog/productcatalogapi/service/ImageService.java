@@ -35,6 +35,7 @@ public class ImageService {
         this.s3Service = s3Service;
     }
 
+    @Transactional
     public ImageResponse uploadImage(Long productId, String authUsername, MultipartFile file) throws IOException {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("File must not be empty");
