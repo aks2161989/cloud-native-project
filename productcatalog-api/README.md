@@ -55,21 +55,21 @@ The application follows a layered architecture consisting of Controllers, Servic
 
 # API Endpoints
 
-| Method | Endpoint | Authentication |
-|---------|----------|----------------|
-| GET | `/healthz` | No |
-| POST | `/v1/user` | No |
-| GET | `/v1/user/self` | Yes |
-| PUT | `/v1/user/self` | Yes |
-| POST | `/v1/product` | Yes |
-| GET | `/v1/product/{id}` | Yes |
-| PUT / PATCH | `/v1/product/{id}` | Yes |
-| DELETE | `/v1/product/{id}` | Yes |
-| POST | `/v1/product/{productId}/image` | Yes |
-| GET | `/v1/product/{productId}/image` | Yes |
-| GET | `/v1/product/{productId}/image/{imageId}` | Yes |
-| DELETE | `/v1/product/{productId}/image/{imageId}` | Yes |
-
+| Method | Endpoint | Authentication | Description |
+|---------|----------|----------------|-------------|
+| GET | /healthz | No | Application readiness & database health check |
+| POST | /v1/user | No | Creates user; publishes signup event to SNS |
+| GET | /v1/user/{userId} | Yes | Fetches user account info (owner only) |
+| PUT | /v1/user/{userId} | Yes | Updates user account details (owner only) |
+| GET | /validateEmail?email={email}&token={token} | No | Validates email within 1-minute expiration |
+| POST | /v1/product | Yes | Creates new catalog product |
+| GET | /v1/product/{id} | Yes | Retrieves product details |
+| PUT / PATCH | /v1/product/{id} | Yes | Updates product details (owner only) |
+| DELETE | /v1/product/{id} | Yes | Deletes product (owner only) |
+| POST | /v1/product/{productId}/image | Yes | Uploads image attachment to S3 |
+| GET | /v1/product/{productId}/image | Yes | Lists image attachment metadata |
+| GET | /v1/product/{productId}/image/{imageId} | Yes | Retrieves single image metadata |
+| DELETE | /v1/product/{productId}/image/{imageId} | Yes | Deletes image from S3 and database |
 ---
 
 # Authentication
