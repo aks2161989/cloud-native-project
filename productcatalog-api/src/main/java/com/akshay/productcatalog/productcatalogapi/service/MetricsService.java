@@ -74,6 +74,14 @@ public class MetricsService {
         }
     }
 
+    public void incrementSnsPublishCount() {
+        increment("sns.publish.count");
+    }
+
+    public void recordSnsPublishTime(long durationMs) {
+        recordExecutionTime("sns.publish.time", durationMs);
+    }
+
     private String sanitizeEndpoint(String uri) {
         if (uri == null || uri.isBlank() || uri.equals("/")) {
             return "root";

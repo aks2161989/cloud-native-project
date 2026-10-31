@@ -1,3 +1,7 @@
+# --- Current AWS Caller Identity ---
+data "aws_caller_identity" "current" {}
+
+# --- VPC and Networking ---
 resource "aws_vpc" "main" {
   cidr_block           = var.vpc_cidr
   enable_dns_support   = true
@@ -76,7 +80,168 @@ resource "aws_route_table_association" "private" {
   route_table_id = aws_route_table.private.id
 }
 
-# --- Load Balancer Security Group ---
+# --- AWS Key Management Service (KMS) Customer Managed Keys ---
+
+# 1. EC2 Key for EBS Volume Encryption
+resource "aws_kms_key" "ec2" {
+  description             = "KMS customer managed key for EC2 EBS volume encryption"
+  deletion_window_in_days = 10
+  enable_key_rotation     = true
+  rotation_period_in_days = 90
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "Enable IAM User Permissions"
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        }
+        Action   = "kms:*"
+        Resource = "*"
+      }
+    ]
+  })
+
+  tags = {
+    Name = "${var.vpc_name}-ec2-kms-key"
+  }
+}
+
+resource "aws_kms_alias" "ec2" {
+  name          = "alias/${var.vpc_name}-ec2-key"
+  target_key_id = aws_kms_key.ec2.key_id
+}
+
+# 2. RDS Key for Database Storage Encryption
+resource "aws_kms_key" "rds" {
+  description             = "KMS customer managed key for RDS database encryption"
+  deletion_window_in_days = 10
+  enable_key_rotation     = true
+  rotation_period_in_days = 90
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "Enable IAM User Permissions"
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        }
+        Action   = "kms:*"
+        Resource = "*"
+      }
+    ]
+  })
+
+  tags = {
+    Name = "${var.vpc_name}-rds-kms-key"
+  }
+}
+
+resource "aws_kms_alias" "rds" {
+  name          = "alias/${var.vpc_name}-rds-key"
+  target_key_id = aws_kms_key.rds.key_id
+}
+
+# 3. S3 Key for S3 Bucket Server-Side Encryption
+resource "aws_kms_key" "s3" {
+  description             = "KMS customer managed key for S3 bucket encryption"
+  deletion_window_in_days = 10
+  enable_key_rotation     = true
+  rotation_period_in_days = 90
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "Enable IAM User Permissions"
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        }
+        Action   = "kms:*"
+        Resource = "*"
+      }
+    ]
+  })
+
+  tags = {
+    Name = "${var.vpc_name}-s3-kms-key"
+  }
+}
+
+resource "aws_kms_alias" "s3" {
+  name          = "alias/${var.vpc_name}-s3-key"
+  target_key_id = aws_kms_key.s3.key_id
+}
+
+# 4. Secrets Manager Key for Database Credentials Encryption
+resource "aws_kms_key" "secrets" {
+  description             = "KMS customer managed key for Secrets Manager database credentials"
+  deletion_window_in_days = 10
+  enable_key_rotation     = true
+  rotation_period_in_days = 90
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "Enable IAM User Permissions"
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        }
+        Action   = "kms:*"
+        Resource = "*"
+      }
+    ]
+  })
+
+  tags = {
+    Name = "${var.vpc_name}-secrets-kms-key"
+  }
+}
+
+resource "aws_kms_alias" "secrets" {
+  name          = "alias/${var.vpc_name}-secrets-key"
+  target_key_id = aws_kms_key.secrets.key_id
+}
+
+# --- AWS Secrets Manager for RDS Credentials ---
+resource "random_string" "secret_suffix" {
+  length  = 6
+  special = false
+  upper   = false
+}
+
+resource "aws_secretsmanager_secret" "db_secret" {
+  name                    = "${var.vpc_name}-db-credentials-${random_string.secret_suffix.result}"
+  description             = "Database credentials for RDS PostgreSQL instance"
+  kms_key_id              = aws_kms_key.secrets.arn
+  recovery_window_in_days = 0
+
+  tags = {
+    Name = "${var.vpc_name}-db-secret"
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "db_secret_version" {
+  secret_id = aws_secretsmanager_secret.db_secret.id
+  secret_string = jsonencode({
+    username = "csye6225"
+    password = random_password.db_password.result
+    host     = aws_db_instance.rds.address
+    port     = 5432
+    database = aws_db_instance.rds.db_name
+  })
+}
+
+# --- Security Groups ---
+
+# Load Balancer Security Group
 resource "aws_security_group" "load_balancer" {
   name        = "${var.vpc_name}-load-balancer-sg"
   description = "Security group for the Application Load Balancer"
@@ -111,7 +276,7 @@ resource "aws_security_group" "load_balancer" {
   }
 }
 
-# --- Application Security Group ---
+# Application Security Group
 resource "aws_security_group" "application" {
   name        = "${var.vpc_name}-application-sg"
   description = "Security group for web application EC2 instances"
@@ -146,6 +311,32 @@ resource "aws_security_group" "application" {
   }
 }
 
+# Database Security Group
+resource "aws_security_group" "database" {
+  name        = "${var.vpc_name}-database-sg"
+  description = "Database security group for RDS instance"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    description     = "PostgreSQL access from application security group"
+    from_port       = 5432
+    to_port         = 5432
+    protocol        = "tcp"
+    security_groups = [aws_security_group.application.id]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${var.vpc_name}-database-sg"
+  }
+}
+
 # --- S3 Bucket for Attachments ---
 resource "random_uuid" "bucket_name" {}
 
@@ -163,7 +354,8 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "attachments_encry
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      kms_master_key_id = aws_kms_key.s3.arn
+      sse_algorithm     = "aws:kms"
     }
   }
 }
@@ -193,7 +385,16 @@ resource "aws_s3_bucket_public_access_block" "attachments_public_access_block" {
   restrict_public_buckets = true
 }
 
-# --- IAM Role and Policy for EC2 S3 and CloudWatch Access ---
+# --- Amazon SNS Topic for User Registration ---
+resource "aws_sns_topic" "user_signup" {
+  name = "${var.vpc_name}-user-signup-topic"
+
+  tags = {
+    Name = "${var.vpc_name}-user-signup-topic"
+  }
+}
+
+# --- IAM Role and Policy for EC2 S3, Secrets Manager, KMS, SNS, and CloudWatch Access ---
 resource "aws_iam_role" "ec2_s3_role" {
   name = "${var.vpc_name}-ec2-s3-role"
 
@@ -215,33 +416,65 @@ resource "aws_iam_role" "ec2_s3_role" {
   }
 }
 
-resource "aws_iam_policy" "ec2_s3_policy" {
-  name        = "${var.vpc_name}-ec2-s3-policy"
-  description = "IAM policy for EC2 instance to access S3 bucket"
+resource "aws_iam_policy" "ec2_app_policy" {
+  name        = "${var.vpc_name}-ec2-app-policy"
+  description = "IAM policy for EC2 instance to access S3, Secrets Manager, KMS, and SNS"
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
+        Sid    = "S3Access"
+        Effect = "Allow"
         Action = [
           "s3:PutObject",
           "s3:GetObject",
           "s3:DeleteObject",
           "s3:ListBucket"
         ]
-        Effect = "Allow"
         Resource = [
           aws_s3_bucket.attachments.arn,
           "${aws_s3_bucket.attachments.arn}/*"
         ]
+      },
+      {
+        Sid    = "SecretsManagerAccess"
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:DescribeSecret"
+        ]
+        Resource = aws_secretsmanager_secret.db_secret.arn
+      },
+      {
+        Sid    = "KmsAccess"
+        Effect = "Allow"
+        Action = [
+          "kms:Decrypt",
+          "kms:DescribeKey",
+          "kms:Encrypt",
+          "kms:GenerateDataKey*"
+        ]
+        Resource = [
+          aws_kms_key.s3.arn,
+          aws_kms_key.secrets.arn
+        ]
+      },
+      {
+        Sid    = "SnsPublishAccess"
+        Effect = "Allow"
+        Action = [
+          "sns:Publish"
+        ]
+        Resource = aws_sns_topic.user_signup.arn
       }
     ]
   })
 }
 
-resource "aws_iam_role_policy_attachment" "ec2_s3_policy_attachment" {
+resource "aws_iam_role_policy_attachment" "ec2_app_policy_attachment" {
   role       = aws_iam_role.ec2_s3_role.name
-  policy_arn = aws_iam_policy.ec2_s3_policy.arn
+  policy_arn = aws_iam_policy.ec2_app_policy.arn
 }
 
 resource "aws_iam_role_policy_attachment" "ec2_cloudwatch_agent_policy_attachment" {
@@ -252,32 +485,6 @@ resource "aws_iam_role_policy_attachment" "ec2_cloudwatch_agent_policy_attachmen
 resource "aws_iam_instance_profile" "ec2_profile" {
   name = "${var.vpc_name}-ec2-instance-profile"
   role = aws_iam_role.ec2_s3_role.name
-}
-
-# --- Database Security Group ---
-resource "aws_security_group" "database" {
-  name        = "${var.vpc_name}-database-sg"
-  description = "Database security group for RDS instance"
-  vpc_id      = aws_vpc.main.id
-
-  ingress {
-    description     = "PostgreSQL access from application security group"
-    from_port       = 5432
-    to_port         = 5432
-    protocol        = "tcp"
-    security_groups = [aws_security_group.application.id]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name = "${var.vpc_name}-database-sg"
-  }
 }
 
 # --- RDS Parameter Group & DB Subnet Group ---
@@ -324,6 +531,10 @@ resource "aws_db_instance" "rds" {
   parameter_group_name   = aws_db_parameter_group.postgres.name
   skip_final_snapshot    = true
 
+  # KMS storage encryption with custom RDS KMS Key
+  storage_encrypted = true
+  kms_key_id        = aws_kms_key.rds.arn
+
   tags = {
     Name = "${var.vpc_name}-rds-postgres"
   }
@@ -367,11 +578,62 @@ resource "aws_lb_target_group" "app_tg" {
   }
 }
 
-# --- ALB HTTP Listener ---
+# --- SSL / TLS Certificate (Dev ACM / Demo Import) ---
+resource "aws_acm_certificate" "cert" {
+  count             = var.ssl_certificate_arn == null ? 1 : 0
+  domain_name       = var.domain_name
+  validation_method = "DNS"
+
+  tags = {
+    Name = "${var.vpc_name}-acm-cert"
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_route53_record" "cert_validation" {
+  for_each = var.ssl_certificate_arn == null ? {
+    for dvo in aws_acm_certificate.cert[0].domain_validation_options : dvo.domain_name => {
+      name   = dvo.resource_record_name
+      record = dvo.resource_record_value
+      type   = dvo.resource_record_type
+    }
+  } : {}
+
+  allow_overwrite = true
+  name            = each.value.name
+  records         = [each.value.record]
+  ttl             = 60
+  type            = each.value.type
+  zone_id         = data.aws_route53_zone.primary.zone_id
+}
+
+resource "aws_acm_certificate_validation" "cert" {
+  count                   = var.ssl_certificate_arn == null ? 1 : 0
+  certificate_arn         = aws_acm_certificate.cert[0].arn
+  validation_record_fqdns = [for record in aws_route53_record.cert_validation : record.fqdn]
+}
+
+# --- ALB Listeners (HTTP 80 and HTTPS 443) ---
 resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.app_alb.arn
   port              = 80
   protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.app_tg.arn
+  }
+}
+
+resource "aws_lb_listener" "https" {
+  load_balancer_arn = aws_lb.app_alb.arn
+  port              = 443
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+  certificate_arn   = var.ssl_certificate_arn != null ? var.ssl_certificate_arn : aws_acm_certificate_validation.cert[0].certificate_arn
 
   default_action {
     type             = "forward"
@@ -402,18 +664,27 @@ resource "aws_launch_template" "asg_launch_template" {
       volume_size           = 25
       volume_type           = "gp2"
       delete_on_termination = true
+      encrypted             = true
+      kms_key_id            = aws_kms_key.ec2.arn
     }
   }
 
   user_data = base64encode(<<-EOF
               #!/bin/bash
               mkdir -p /opt/csye6225
-              cat <<'ENVFILE' > /opt/csye6225/application.env
+
+              # Retrieve database credentials from AWS Secrets Manager using AWS CLI and python
+              SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id ${aws_secretsmanager_secret.db_secret.arn} --region ${var.aws_region} --query SecretString --output text)
+              DB_PASSWORD=$(python3 -c "import json, sys; print(json.loads('''$SECRET_JSON''')['password'])")
+
+              cat <<ENVFILE > /opt/csye6225/application.env
               DB_URL=jdbc:postgresql://${aws_db_instance.rds.address}:5432/${aws_db_instance.rds.db_name}
               DB_USERNAME=${aws_db_instance.rds.username}
-              DB_PASSWORD=${random_password.db_password.result}
+              DB_PASSWORD=$DB_PASSWORD
               AWS_REGION=${var.aws_region}
               S3_BUCKET_NAME=${aws_s3_bucket.attachments.bucket}
+              SNS_TOPIC_ARN=${aws_sns_topic.user_signup.arn}
+              DOMAIN_NAME=${var.domain_name}
               LOG_FILE_PATH=/var/log/csye6225/app.log
               STATSD_HOST=localhost
               STATSD_PORT=8125
@@ -451,7 +722,9 @@ resource "aws_launch_template" "asg_launch_template" {
 
   depends_on = [
     aws_db_instance.rds,
-    aws_s3_bucket.attachments
+    aws_s3_bucket.attachments,
+    aws_secretsmanager_secret_version.db_secret_version,
+    aws_sns_topic.user_signup
   ]
 }
 
@@ -583,4 +856,139 @@ resource "aws_route53_record" "spf" {
   type    = "TXT"
   ttl     = 600
   records = ["v=spf1 include:amazonses.com ~all"]
+}
+
+# --- DynamoDB Table for Email Tracking & Deduplication ---
+resource "aws_dynamodb_table" "email_tracking" {
+  name         = "${var.vpc_name}-email-tracking"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "email"
+  range_key    = "token"
+
+  attribute {
+    name = "email"
+    type = "S"
+  }
+
+  attribute {
+    name = "token"
+    type = "S"
+  }
+
+  ttl {
+    attribute_name = "ttl"
+    enabled        = true
+  }
+
+  tags = {
+    Name = "${var.vpc_name}-email-tracking"
+  }
+}
+
+# --- Serverless Lambda Function Package & Deployment ---
+data "archive_file" "lambda_zip" {
+  type        = "zip"
+  source_dir  = "${path.module}/../serverless"
+  output_path = "${path.module}/lambda_function.zip"
+  excludes    = [".git", "node_modules", ".github", "lambda-function.zip", "*.zip"]
+}
+
+resource "aws_iam_role" "lambda_role" {
+  name = "${var.vpc_name}-lambda-exec-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Name = "${var.vpc_name}-lambda-exec-role"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
+  role       = aws_iam_role.lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_policy" "lambda_app_policy" {
+  name        = "${var.vpc_name}-lambda-app-policy"
+  description = "IAM policy for Lambda to access DynamoDB and SES"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "DynamoDBAccess"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:Query"
+        ]
+        Resource = aws_dynamodb_table.email_tracking.arn
+      },
+      {
+        Sid    = "SESAccess"
+        Effect = "Allow"
+        Action = [
+          "ses:SendEmail",
+          "ses:SendRawEmail"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_app_policy_attachment" {
+  role       = aws_iam_role.lambda_role.name
+  policy_arn = aws_iam_policy.lambda_app_policy.arn
+}
+
+resource "aws_lambda_function" "user_verification" {
+  filename         = data.archive_file.lambda_zip.output_path
+  source_code_hash = data.archive_file.lambda_zip.output_base64sha256
+  function_name    = "${var.vpc_name}-user-verification-lambda"
+  role             = aws_iam_role.lambda_role.arn
+  handler          = "index.handler"
+  runtime          = "nodejs20.x"
+  timeout          = 60
+  memory_size      = 256
+
+  environment {
+    variables = {
+      DYNAMODB_TABLE_NAME = aws_dynamodb_table.email_tracking.name
+      AWS_REGION          = var.aws_region
+      APP_DOMAIN          = var.domain_name
+      SOURCE_EMAIL        = "noreply@${var.domain_name}"
+    }
+  }
+
+  tags = {
+    Name = "${var.vpc_name}-user-verification-lambda"
+  }
+}
+
+resource "aws_lambda_permission" "sns_invoke" {
+  statement_id  = "AllowSNSInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.user_verification.function_name
+  principal     = "sns.amazonaws.com"
+  source_arn    = aws_sns_topic.user_signup.arn
+}
+
+resource "aws_sns_topic_subscription" "lambda_sub" {
+  topic_arn = aws_sns_topic.user_signup.arn
+  protocol  = "lambda"
+  endpoint  = aws_lambda_function.user_verification.arn
 }

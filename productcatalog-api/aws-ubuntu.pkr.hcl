@@ -87,4 +87,9 @@ build {
       "sudo /tmp/setup.sh /tmp/productcatalog-api.jar /tmp/productcatalog.service /tmp/amazon-cloudwatch-agent.json"
     ]
   }
+
+  post-processor "manifest" {
+    output     = "manifest.json"
+    strip_path = true
+  }
 }

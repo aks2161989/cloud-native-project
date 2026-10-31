@@ -78,3 +78,9 @@ variable "asg_desired_capacity" {
   type        = number
   default     = 3
 }
+
+variable "ssl_certificate_arn" {
+  description = "Optional ARN of an imported SSL certificate for Demo environment"
+  type        = string
+  default     = null
+}

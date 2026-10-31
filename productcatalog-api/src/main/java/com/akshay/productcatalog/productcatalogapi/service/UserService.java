@@ -5,18 +5,29 @@ import com.akshay.productcatalog.productcatalogapi.dto.UserResponse;
 import com.akshay.productcatalog.productcatalogapi.dto.UserUpdateRequest;
 import com.akshay.productcatalog.productcatalogapi.entity.User;
 import com.akshay.productcatalog.productcatalogapi.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+
+import java.time.OffsetDateTime;
+import java.util.UUID;
 
 @Service
 public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final SnsService snsService;
 
-    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    @Autowired
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, SnsService snsService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.snsService = snsService;
+    }
+
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+        this(userRepository, passwordEncoder, null);
     }
 
     public UserResponse createUser(UserCreateRequest request){
@@ -27,15 +38,45 @@ public class UserService {
             );
         }
 
+        String token = UUID.randomUUID().toString();
+
         User user = new User();
         user.setFirstName(request.getFirstName());
         user.setLastName(request.getLastName());
         user.setUsername(request.getUsername());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setVerificationToken(token);
+        user.setTokenExpiry(OffsetDateTime.now().plusMinutes(1));
+        user.setEmailVerified(false);
 
         User savedUser = userRepository.save(user);
 
+        if (snsService != null) {
+            snsService.publishUserSignup(savedUser, token);
+        }
+
         return new UserResponse(savedUser);
+    }
+
+    public void verifyEmail(String email, String token) {
+        if (email == null || email.isBlank() || token == null || token.isBlank()) {
+            throw new IllegalArgumentException("Email and verification token are required.");
+        }
+
+        User user = userRepository.findByUsername(email)
+                .orElseThrow(() -> new IllegalArgumentException("User with this email does not exist."));
+
+        if (user.getVerificationToken() == null || !user.getVerificationToken().equals(token)) {
+            throw new IllegalArgumentException("Invalid verification token.");
+        }
+
+        if (user.getTokenExpiry() == null || OffsetDateTime.now().isAfter(user.getTokenExpiry())) {
+            throw new IllegalArgumentException("Verification link has expired. Links are valid for 1 minute.");
+        }
+
+        user.setEmailVerified(true);
+        user.setEmailVerifiedAt(OffsetDateTime.now());
+        userRepository.save(user);
     }
 
     public UserResponse getuser(

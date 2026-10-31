@@ -82,3 +82,43 @@ output "launch_template_name" {
   description = "Name of the Launch Template"
   value       = aws_launch_template.asg_launch_template.name
 }
+
+output "sns_topic_arn" {
+  description = "ARN of the SNS topic for user registration notifications"
+  value       = aws_sns_topic.user_signup.arn
+}
+
+output "lambda_function_arn" {
+  description = "ARN of the email verification Lambda function"
+  value       = aws_lambda_function.user_verification.arn
+}
+
+output "dynamodb_table_name" {
+  description = "Name of the DynamoDB table for email tracking"
+  value       = aws_dynamodb_table.email_tracking.name
+}
+
+output "kms_ec2_key_arn" {
+  description = "ARN of the customer managed KMS key for EC2 EBS encryption"
+  value       = aws_kms_key.ec2.arn
+}
+
+output "kms_rds_key_arn" {
+  description = "ARN of the customer managed KMS key for RDS encryption"
+  value       = aws_kms_key.rds.arn
+}
+
+output "kms_s3_key_arn" {
+  description = "ARN of the customer managed KMS key for S3 bucket encryption"
+  value       = aws_kms_key.s3.arn
+}
+
+output "kms_secrets_key_arn" {
+  description = "ARN of the customer managed KMS key for Secrets Manager encryption"
+  value       = aws_kms_key.secrets.arn
+}
+
+output "db_secret_arn" {
+  description = "ARN of the Secrets Manager secret storing RDS credentials"
+  value       = aws_secretsmanager_secret.db_secret.arn
+}

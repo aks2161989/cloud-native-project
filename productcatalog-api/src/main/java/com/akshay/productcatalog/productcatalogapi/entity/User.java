@@ -40,6 +40,18 @@ public class User {
     @Column(name = "account_updated", nullable = false)
     private OffsetDateTime accountUpdated;
 
+    @Column(name = "email_verified", nullable = false, columnDefinition = "boolean default false")
+    private boolean emailVerified = false;
+
+    @Column(name = "verification_token")
+    private String verificationToken;
+
+    @Column(name = "token_expiry")
+    private OffsetDateTime tokenExpiry;
+
+    @Column(name = "email_verified_at")
+    private OffsetDateTime emailVerifiedAt;
+
     @PrePersist
     protected void onCreate(){
         OffsetDateTime now = OffsetDateTime.now();
@@ -90,5 +102,37 @@ public class User {
 
     public OffsetDateTime getAccountUpdated() {
         return accountUpdated;
+    }
+
+    public boolean isEmailVerified() {
+        return emailVerified;
+    }
+
+    public void setEmailVerified(boolean emailVerified) {
+        this.emailVerified = emailVerified;
+    }
+
+    public String getVerificationToken() {
+        return verificationToken;
+    }
+
+    public void setVerificationToken(String verificationToken) {
+        this.verificationToken = verificationToken;
+    }
+
+    public OffsetDateTime getTokenExpiry() {
+        return tokenExpiry;
+    }
+
+    public void setTokenExpiry(OffsetDateTime tokenExpiry) {
+        this.tokenExpiry = tokenExpiry;
+    }
+
+    public OffsetDateTime getEmailVerifiedAt() {
+        return emailVerifiedAt;
+    }
+
+    public void setEmailVerifiedAt(OffsetDateTime emailVerifiedAt) {
+        this.emailVerifiedAt = emailVerifiedAt;
     }
 }
