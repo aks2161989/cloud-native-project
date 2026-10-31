@@ -55,6 +55,24 @@ graph TD
    - Instance Type: `t2.micro`.
    - Root Block Device: `25 GB` GP2 EBS volume configured with `delete_on_termination = true`.
    - Boot Image: Custom golden AMI built with HashiCorp Packer.
+   - IAM Instance Profile: Attached with permissions to read/write/delete S3 attachments.
+   - User Data: Bootstraps `/opt/csye6225/application.env` with RDS credentials and S3 bucket details, then restarts `productcatalog.service`.
+6. **Private S3 Bucket**:
+   - Name: Generated UUID (`random_uuid`).
+   - Encryption: Server-side AES256 default encryption.
+   - Lifecycle: Automatically transitions objects from `STANDARD` to `STANDARD_IA` after 30 days.
+   - Destruction: `force_destroy = true` enables clean teardown.
+   - Public Access: All public access explicitly blocked.
+7. **Database Security Group**:
+   - Dedicated EC2 security group for RDS PostgreSQL instances.
+   - Ingress on port 5432 allowed strictly and exclusively from the application security group.
+   - No direct public internet access.
+8. **RDS PostgreSQL Instance**:
+   - Engine: PostgreSQL 16.x (`db.t4g.micro`, 20GB).
+   - Multi-AZ: Disabled (`multi_az = false`).
+   - Network: Deployed in private DB subnet group across private subnets.
+   - Parameter Group: Custom `postgres16` parameter group attached.
+   - Credentials: Username `csye6225`, auto-generated strong password.
 
 ---
 

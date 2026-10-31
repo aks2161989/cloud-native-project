@@ -8,6 +8,9 @@ import com.akshay.productcatalog.productcatalogapi.exception.ResourceNotFoundExc
 import com.akshay.productcatalog.productcatalogapi.repository.ProductRepository;
 import com.akshay.productcatalog.productcatalogapi.repository.UserRepository;
 import org.springframework.stereotype.Service;
+import com.akshay.productcatalog.productcatalogapi.entity.Image;
+import com.akshay.productcatalog.productcatalogapi.repository.ImageRepository;
+import java.util.List;
 import com.akshay.productcatalog.productcatalogapi.dto.ProductUpdateRequest;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,10 +19,15 @@ public class ProductService {
 
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
+    private final ImageRepository imageRepository;
+    private final S3Service s3Service;
 
-    public ProductService(ProductRepository productRepository, UserRepository userRepository) {
+    public ProductService(ProductRepository productRepository, UserRepository userRepository,
+                          ImageRepository imageRepository, S3Service s3Service) {
         this.productRepository = productRepository;
         this.userRepository = userRepository;
+        this.imageRepository = imageRepository;
+        this.s3Service = s3Service;
     }
 
     public ProductResponse createProduct(
@@ -160,6 +168,18 @@ public class ProductService {
             );
         }
 
+        List<Image> images = imageRepository.findByProductId(productId);
+        for (Image img : images) {
+            String path = img.getS3BucketPath();
+            String bucket = s3Service.getBucketName();
+            String s3Key = (bucket != null && !bucket.isEmpty() && path.startsWith(bucket + "/"))
+                    ? path.substring(bucket.length() + 1) : path;
+            try {
+                s3Service.deleteFile(s3Key);
+            } catch (Exception ignored) {
+            }
+        }
+        imageRepository.deleteByProductId(productId);
         productRepository.delete(product);
     }
 }

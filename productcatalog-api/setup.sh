@@ -6,10 +6,6 @@ set -e
 APP_USER="csye6225"
 APP_GROUP="csye6225"
 
-DB_NAME="productcatalog_db"
-DB_USER="productcatalog"
-DB_PASSWORD="productcatalog_password"
-
 APP_DIR="/opt/csye6225"
 APP_JAR="${1:-}"
 
@@ -22,10 +18,7 @@ echo "Updating package lists..."
 apt-get update
 
 echo "Installing application dependencies..."
-apt-get install -y \
-  openjdk-21-jre-headless \
-  postgresql \
-  postgresql-contrib
+apt-get install -y openjdk-21-jre-headless
 
 echo "Removing Git from the custom image..."
 apt-get remove -y --purge git git-man
@@ -43,24 +36,6 @@ if ! id "${APP_USER}" > /dev/null 2>&1; then
     --shell /usr/sbin/nologin \
     "${APP_USER}"
 fi
-
-echo "Enabling PostgreSQL..."
-systemctl enable postgresql
-
-echo "Starting PostgreSQL..."
-systemctl start postgresql
-
-echo "Creating PostgreSQL application user..."
-if ! sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='${DB_USER}'" | grep -q 1; then
-  sudo -u postgres psql -c "CREATE USER ${DB_USER} WITH PASSWORD '${DB_PASSWORD}';"
-fi
-
-echo "Creating PostgreSQL application database..."
-if ! sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'" | grep -q 1; then
-  sudo -u postgres createdb --owner="${DB_USER}" "${DB_NAME}"
-fi
-
-echo "PostgreSQL application database setup completed."
 
 if [[ -z "${APP_JAR}" ]]; then
   echo "Usage: $0 <application-jar>"
@@ -107,5 +82,4 @@ echo "Enabling application service..."
 systemctl enable "${SERVICE_NAME}"
 
 echo "Systemd service configured successfully."
-
-echo "Base application dependencies and user setup completed."
+echo "Application dependencies and user setup completed."

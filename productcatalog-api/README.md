@@ -65,6 +65,10 @@ The application follows a layered architecture consisting of Controllers, Servic
 | GET | `/v1/product/{id}` | Yes |
 | PUT / PATCH | `/v1/product/{id}` | Yes |
 | DELETE | `/v1/product/{id}` | Yes |
+| POST | `/v1/product/{productId}/image` | Yes |
+| GET | `/v1/product/{productId}/image` | Yes |
+| GET | `/v1/product/{productId}/image/{imageId}` | Yes |
+| DELETE | `/v1/product/{productId}/image/{imageId}` | Yes |
 
 ---
 
@@ -325,3 +329,31 @@ GitHub Actions workflows are configured in `.github/workflows/`:
 - **`ci.yml`**: Runs on push and pull requests to `master`. Launches a PostgreSQL 16 container service and executes `mvn clean verify`.
 - **`packer-check.yml`**: Runs on pull requests to `master` to check Packer formatting and validate template syntax.
 - **`packer-build.yml`**: Runs on push to `master`. Runs tests, builds the JAR, authenticates to AWS, and bakes a new golden AMI.
+
+---
+
+## Upload Product Image
+
+```bash
+curl -i -u test@example.com:Password123 -X POST \
+  http://localhost:8080/v1/product/1/image \
+  -F "file=@image.png"
+```
+
+---
+
+## Get Product Images
+
+```bash
+curl -i -u test@example.com:Password123 \
+  http://localhost:8080/v1/product/1/image
+```
+
+---
+
+## Delete Product Image
+
+```bash
+curl -i -u test@example.com:Password123 -X DELETE \
+  http://localhost:8080/v1/product/1/image/1
+```
