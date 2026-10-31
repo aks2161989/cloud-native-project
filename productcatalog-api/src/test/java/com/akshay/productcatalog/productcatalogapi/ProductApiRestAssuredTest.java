@@ -204,6 +204,44 @@ class ProductApiRestAssuredTest extends BaseRestAssuredTest {
     }
 
     @Test
+    void ownerCanPatchOwnProduct() {
+        String username = TestCredentials.uniqueUsername("patch-owner");
+        String password = TestCredentials.PASSWORD;
+
+        User owner = createUser(username, password);
+        Product product = createProduct(owner);
+
+        String updateBody = """
+            {
+              "name":"Patched Keyboard",
+              "description":"Patched Description",
+              "sku":"PATCHED-SKU",
+              "manufacturer":"Patched Corp",
+              "quantity":30
+            }
+            """;
+
+        given()
+                .auth()
+                .preemptive()
+                .basic(username, password)
+                .contentType(ContentType.JSON)
+                .body(updateBody)
+                .when()
+                .patch("/v1/product/{id}", product.getId())
+                .then()
+                .statusCode(204);
+
+        Product updated = productRepository.findById(product.getId()).orElseThrow();
+
+        assertEquals("Patched Keyboard", updated.getName());
+        assertEquals("Patched Description", updated.getDescription());
+        assertEquals("PATCHED-SKU", updated.getSku());
+        assertEquals("Patched Corp", updated.getManufacturer());
+        assertEquals(30, updated.getQuantity());
+    }
+
+    @Test
     void nonOwnerCannotUpdateProduct() {
 
         User owner = createUser(

@@ -17,4 +17,41 @@ class HealthCheckRestAssuredTest extends BaseRestAssuredTest {
         assertEquals("no-cache", response.header("Cache-Control"));
         assertTrue(response.body().asString().isBlank());
     }
+
+    @Test
+    void healthCheckPostReturns405() {
+        Response response = RestAssured.post("/healthz");
+
+        assertEquals(405, response.statusCode());
+        assertEquals("no-cache", response.header("Cache-Control"));
+        assertTrue(response.body().asString().isBlank());
+    }
+
+    @Test
+    void healthCheckPutReturns405() {
+        Response response = RestAssured.put("/healthz");
+
+        assertEquals(405, response.statusCode());
+        assertEquals("no-cache", response.header("Cache-Control"));
+        assertTrue(response.body().asString().isBlank());
+    }
+
+    @Test
+    void healthCheckDeleteReturns405() {
+        Response response = RestAssured.delete("/healthz");
+
+        assertEquals(405, response.statusCode());
+        assertEquals("no-cache", response.header("Cache-Control"));
+        assertTrue(response.body().asString().isBlank());
+    }
+
+    @Test
+    void healthCheckWithBodyReturns400() {
+        Response response = RestAssured.given()
+                .body("invalid-payload")
+                .get("/healthz");
+
+        assertEquals(400, response.statusCode());
+        assertEquals("no-cache", response.header("Cache-Control"));
+    }
 }

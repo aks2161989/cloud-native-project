@@ -28,10 +28,7 @@ public class SecurityConfig {
                     )
                     .authorizeHttpRequests(auth -> auth
                             .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
-                            .requestMatchers(
-                                    HttpMethod.GET,
-                                    "/healthz"
-                            ).permitAll()
+                            .requestMatchers("/healthz").permitAll()
                             .requestMatchers(
                                     HttpMethod.POST,
                                     "/v1/user"

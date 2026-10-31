@@ -63,7 +63,7 @@ The application follows a layered architecture consisting of Controllers, Servic
 | PUT | `/v1/user/self` | Yes |
 | POST | `/v1/product` | Yes |
 | GET | `/v1/product/{id}` | Yes |
-| PUT | `/v1/product/{id}` | Yes |
+| PUT / PATCH | `/v1/product/{id}` | Yes |
 | DELETE | `/v1/product/{id}` | Yes |
 
 ---

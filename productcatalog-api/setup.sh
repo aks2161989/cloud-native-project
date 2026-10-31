@@ -28,8 +28,8 @@ apt-get install -y \
   postgresql-contrib
 
 echo "Removing Git from the custom image..."
-apt-get remove -y git
-apt-get autoremove -y
+apt-get remove -y --purge git git-man
+apt-get autoremove -y --purge
 
 echo "Creating application group..."
 if ! getent group "${APP_GROUP}" > /dev/null; then

@@ -43,7 +43,7 @@ public class ProductController {
         return ResponseEntity.ok(response);
     }
 
-    @PutMapping("/{productId}")
+    @RequestMapping(value = "/{productId}", method = {RequestMethod.PUT, RequestMethod.PATCH})
     public ResponseEntity<Void> updateProduct(
             @PathVariable Long productId,
             Authentication authentication,
